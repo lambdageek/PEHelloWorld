@@ -8,7 +8,6 @@ using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
 
-// Inspired by https://csharp.hotexamples.com/examples/System.Reflection.Metadata.Ecma335/MetadataBuilder/-/php-metadatabuilder-class-examples.html
 
 namespace PEHelloWorld
 {
@@ -25,14 +24,21 @@ namespace PEHelloWorld
 
             var self = new PEHelloWorld ();
 
-	        var metadataBuilder = self.CreateMinimalMetadata("runtimeconfig.json");
 
             Dictionary<string,string> configProperties = self.ConvertInputToDictionary (inputFilePath);
 
-            self.ConvertDictionaryToMetadata (configProperties, metadataBuilder);
+#if USE_METADATA
+    	        var metadataBuilder = self.CreateMinimalMetadata("runtimeconfig.json");
+                self.ConvertDictionaryToMetadata (configProperties, metadataBuilder);
 
-            using var stream = File.OpenWrite(outputFilePath);
-            self.WriteContentAsPEImageToStream (metadataBuilder, stream);
+                using var stream = File.OpenWrite(outputFilePath);
+                self.WriteContentAsPEImageToStream (metadataBuilder, stream);
+#else
+                var blobBuilder = new BlobBuilder();
+                self.ConvertDictionaryToBlob (configProperties, blobBuilder);
+                using var stream = File.OpenWrite(outputFilePath);
+                blobBuilder.WriteContentTo(stream);
+#endif
         }
 
         /// Reads a json file from the given path and extracts the "configProperties" key (assumed to be a string to string dictionary)
@@ -48,6 +54,22 @@ namespace PEHelloWorld
             return parsedJson.ConfigProperties;
         }
 
+
+        /// Just write the dictionary out to a blob as a count followed by
+        /// a length-prefixed UTF8 encoding of each key and value
+        private void ConvertDictionaryToBlob (IReadOnlyDictionary<string,string> properties, BlobBuilder b)
+        {
+            int count = properties.Count;
+
+            b.WriteCompressedInteger (count);
+            foreach (var kvp in properties)
+            {
+                b.WriteSerializedString (kvp.Key);
+                b.WriteSerializedString (kvp.Value);
+            }
+        }
+
+#region An alternative encoding the data as a barebones ECMA335 metadata file
         private void ConvertDictionaryToMetadata (IReadOnlyDictionary<string,string> properties, MetadataBuilder builder)
         {
             int count = properties.Count;
@@ -66,13 +88,12 @@ namespace PEHelloWorld
             }
             
         }
-
-        /// Creates a MetadataBuilder that has a Module with the given name and empty GUIDs
+       /// Creates a MetadataBuilder that has a Module with the given name and empty GUIDs
         private MetadataBuilder CreateMinimalMetadata (string moduleName)
         {
             var metadataBuilder = new MetadataBuilder ();
             GuidHandle emptyGuidHandle = metadataBuilder.GetOrAddGuid (Guid.Empty);
-            metadataBuilder.AddModule(0, metadataBuilder.GetOrAddString("runtimeconfig.json"), mvid: emptyGuidHandle, encId: emptyGuidHandle, encBaseId: emptyGuidHandle);
+            metadataBuilder.AddModule(0, metadataBuilder.GetOrAddString(""), mvid: emptyGuidHandle, encId: emptyGuidHandle, encBaseId: emptyGuidHandle);
             return metadataBuilder;
         }
 
@@ -83,6 +104,7 @@ namespace PEHelloWorld
         {
             var ilBuilder = new BlobBuilder ();
 
+            // Inspired by https://csharp.hotexamples.com/examples/System.Reflection.Metadata.Ecma335/MetadataBuilder/-/php-metadatabuilder-class-examples.html
             //var pe = new ManagedPEBuilder (PEHeaderBuilder.CreateLibraryHeader(),
             //            new MetadataRootBuilder (metadataBuilder),
             //            ilBuilder,
@@ -98,6 +120,7 @@ namespace PEHelloWorld
 
             b.WriteContentTo(destination);        
         }
+#endregion
     }
 }
 
