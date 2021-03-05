@@ -83,14 +83,18 @@ namespace PEHelloWorld
         {
             var ilBuilder = new BlobBuilder ();
 
-            var pe = new ManagedPEBuilder (PEHeaderBuilder.CreateLibraryHeader(),
-                        new MetadataRootBuilder (metadataBuilder),
-                        ilBuilder,
-                        flags: CorFlags.ILOnly);
+            //var pe = new ManagedPEBuilder (PEHeaderBuilder.CreateLibraryHeader(),
+            //            new MetadataRootBuilder (metadataBuilder),
+            //            ilBuilder,
+            //            flags: CorFlags.ILOnly);
 
             var b = new BlobBuilder ();
 
-            pe.Serialize(b);
+            //pe.Serialize(b);
+
+            var r = new MetadataRootBuilder(metadataBuilder);
+
+            r.Serialize(b, 0, 0);
 
             b.WriteContentTo(destination);        
         }
